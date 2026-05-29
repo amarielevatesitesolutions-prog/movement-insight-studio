@@ -42,7 +42,7 @@ function UploadFlow() {
       });
       if (upErr) throw upErr;
 
-      const feedback = await analyze({ data: { movement_type: movement, notes: notes || null } });
+      const feedback = await analyze({ data: { movement_type: movement, notes: notes || null, video_path: path } });
 
       const { data: inserted, error: insErr } = await supabase
         .from("analyses")
