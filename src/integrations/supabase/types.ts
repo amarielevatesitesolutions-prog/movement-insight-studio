@@ -14,16 +14,123 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      analyses: {
+        Row: {
+          ai_feedback: Json | null
+          awareness_score: number | null
+          coach_note: string | null
+          created_at: string
+          id: string
+          movement_type: Database["public"]["Enums"]["movement_type"]
+          notes: string | null
+          status: Database["public"]["Enums"]["analysis_status"]
+          user_id: string
+          video_path: string
+        }
+        Insert: {
+          ai_feedback?: Json | null
+          awareness_score?: number | null
+          coach_note?: string | null
+          created_at?: string
+          id?: string
+          movement_type: Database["public"]["Enums"]["movement_type"]
+          notes?: string | null
+          status?: Database["public"]["Enums"]["analysis_status"]
+          user_id: string
+          video_path: string
+        }
+        Update: {
+          ai_feedback?: Json | null
+          awareness_score?: number | null
+          coach_note?: string | null
+          created_at?: string
+          id?: string
+          movement_type?: Database["public"]["Enums"]["movement_type"]
+          notes?: string | null
+          status?: Database["public"]["Enums"]["analysis_status"]
+          user_id?: string
+          video_path?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
+      streaks: {
+        Row: {
+          current_streak: number
+          last_practice_date: string | null
+          user_id: string
+        }
+        Insert: {
+          current_streak?: number
+          last_practice_date?: string | null
+          user_id: string
+        }
+        Update: {
+          current_streak?: number
+          last_practice_date?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      analysis_status: "analyzed" | "pending_review" | "reviewed"
+      app_role: "student" | "coach"
+      movement_type:
+        | "gait_walk"
+        | "ground_flow"
+        | "hip_hinge"
+        | "squat"
+        | "overhead"
+        | "spinal_articulation"
+        | "custom"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +257,18 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      analysis_status: ["analyzed", "pending_review", "reviewed"],
+      app_role: ["student", "coach"],
+      movement_type: [
+        "gait_walk",
+        "ground_flow",
+        "hip_hinge",
+        "squat",
+        "overhead",
+        "spinal_articulation",
+        "custom",
+      ],
+    },
   },
 } as const
