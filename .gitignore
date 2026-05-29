@@ -20,6 +20,10 @@ dist-ssr
 .wrangler/
 .dev.vars
 
+# Vercel (never commit prebuilt build output — it makes Vercel skip the build)
+.vercel/output
+.vercel
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
