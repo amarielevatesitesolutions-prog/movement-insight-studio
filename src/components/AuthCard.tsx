@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -65,8 +64,8 @@ export function AuthCard() {
         if (error) throw error;
         router.navigate({ to: "/dashboard" });
       }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Something went wrong.");
+    } catch (e: any) {
+      toast.error(e.message || "An error occurred during authentication.");
     } finally {
       setBusy(false);
     }
@@ -75,18 +74,15 @@ export function AuthCard() {
   const onGoogle = async () => {
     setBusy(true);
     try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin + "/dashboard",
+        },
       });
-      if (result.error) {
-        toast.error(result.error.message || "Sign-in failed.");
-        setBusy(false);
-        return;
-      }
-      if (result.redirected) return;
-      router.navigate({ to: "/dashboard" });
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Sign-in failed.");
+      if (error) throw error;
+    } catch (e: any) {
+      toast.error(e.message || "Sign-in failed.");
       setBusy(false);
     }
   };
@@ -107,7 +103,7 @@ export function AuthCard() {
             setMode("signin");
             setStep(1);
           }}
-          className={`px-4 py-1.5 text-sm rounded transition-all duration-300 ${mode === "signin" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          className={`px-4 py-1.5 text-sm rounded transition-colors duration-300 ${mode === "signin" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
         >
           Sign in
         </button>
@@ -117,90 +113,86 @@ export function AuthCard() {
             setMode("signup");
             setStep(1);
           }}
-          className={`px-4 py-1.5 text-sm rounded transition-all duration-300 ${mode === "signup" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          className={`px-4 py-1.5 text-sm rounded transition-colors duration-300 ${mode === "signup" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
         >
           Begin
         </button>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-        <div className={`transition-all duration-500 ${step === 1 ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4 absolute pointer-events-none"}`}>
-          {mode === "signup" && (
-            <>
-              <div className="space-y-2 mb-5">
-                <label className="text-xs uppercase tracking-wider text-muted-foreground">Practice as</label>
-                <div className="flex gap-2">
-                  {(["student", "coach"] as const).map((r) => (
-                    <button
-                      type="button"
-                      key={r}
-                      onClick={() => setValue("role", r)}
-                      className={`flex-1 py-2.5 text-sm rounded transition-all duration-300 ${role === r ? "border-forest bg-forest/5 text-forest shadow-sm" : "border-transparent bg-muted/50 text-muted-foreground hover:bg-muted"}`}
-                    >
-                      {r === "student" ? "Student" : "Coach"}
-                    </button>
-                  ))}
-                </div>
+        {mode === "signin" && (
+          <div className="space-y-5 animate-fade-rise">
+            <div className="space-y-2">
+              <label className="text-xs uppercase tracking-wider text-muted-foreground">Email</label>
+              <input
+                type="email"
+                {...register("email")}
+                placeholder="you@studio.com"
+                className={`w-full bg-transparent border-b pb-2 text-foreground outline-none transition-colors focus:border-forest ${errors.email ? "border-destructive" : "border-input"}`}
+              />
+              {errors.email && <p className="text-xs text-destructive mt-1">{errors.email.message}</p>}
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs uppercase tracking-wider text-muted-foreground">Password</label>
+              <input
+                type="password"
+                {...register("password")}
+                placeholder="••••••••"
+                className={`w-full bg-transparent border-b pb-2 text-foreground outline-none transition-colors focus:border-forest ${errors.password ? "border-destructive" : "border-input"}`}
+              />
+              {errors.password && <p className="text-xs text-destructive mt-1">{errors.password.message}</p>}
+            </div>
+
+            <button
+              type="submit"
+              disabled={busy}
+              className="w-full mt-8 py-3 bg-forest text-primary-foreground rounded font-medium hover:bg-forest/90 disabled:opacity-50 transition-colors shadow-lg shadow-forest/20 flex justify-center items-center h-12"
+            >
+              {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : "Sign in"}
+            </button>
+          </div>
+        )}
+
+        {mode === "signup" && step === 1 && (
+          <div className="animate-fade-rise">
+            <div className="space-y-2 mb-5">
+              <label className="text-xs uppercase tracking-wider text-muted-foreground">Practice as</label>
+              <div className="flex gap-2">
+                {(["student", "coach"] as const).map((r) => (
+                  <button
+                    type="button"
+                    key={r}
+                    onClick={() => setValue("role", r)}
+                    className={`flex-1 py-2.5 text-sm rounded transition-colors duration-300 ${role === r ? "border-forest bg-forest/5 text-forest shadow-sm" : "border-transparent bg-muted/50 text-muted-foreground hover:bg-muted"}`}
+                  >
+                    {r === "student" ? "Student" : "Coach"}
+                  </button>
+                ))}
               </div>
+            </div>
 
-              <div className="space-y-2">
-                <label className="text-xs uppercase tracking-wider text-muted-foreground">Name</label>
-                <input
-                  type="text"
-                  {...register("name")}
-                  placeholder="Your name"
-                  className="w-full bg-transparent border-b border-input pb-2 text-foreground outline-none transition-colors focus:border-forest"
-                />
-              </div>
+            <div className="space-y-2">
+              <label className="text-xs uppercase tracking-wider text-muted-foreground">Name</label>
+              <input
+                type="text"
+                {...register("name")}
+                placeholder="Your name"
+                className="w-full bg-transparent border-b border-input pb-2 text-foreground outline-none transition-colors focus:border-forest"
+              />
+            </div>
 
-              <button
-                type="button"
-                onClick={nextStep}
-                className="w-full mt-8 py-3 bg-forest text-primary-foreground rounded font-medium hover:bg-forest/90 transition-colors shadow-lg shadow-forest/20"
-              >
-                Continue
-              </button>
-            </>
-          )}
+            <button
+              type="button"
+              onClick={nextStep}
+              className="w-full mt-8 py-3 bg-forest text-primary-foreground rounded font-medium hover:bg-forest/90 transition-colors shadow-lg shadow-forest/20"
+            >
+              Continue
+            </button>
+          </div>
+        )}
 
-          {mode === "signin" && (
-            <>
-              <div className="space-y-5">
-                <div className="space-y-2">
-                  <label className="text-xs uppercase tracking-wider text-muted-foreground">Email</label>
-                  <input
-                    type="email"
-                    {...register("email")}
-                    placeholder="you@studio.com"
-                    className={`w-full bg-transparent border-b pb-2 text-foreground outline-none transition-colors focus:border-forest ${errors.email ? "border-destructive" : "border-input"}`}
-                  />
-                  {errors.email && <p className="text-xs text-destructive mt-1">{errors.email.message}</p>}
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs uppercase tracking-wider text-muted-foreground">Password</label>
-                  <input
-                    type="password"
-                    {...register("password")}
-                    placeholder="••••••••"
-                    className={`w-full bg-transparent border-b pb-2 text-foreground outline-none transition-colors focus:border-forest ${errors.password ? "border-destructive" : "border-input"}`}
-                  />
-                  {errors.password && <p className="text-xs text-destructive mt-1">{errors.password.message}</p>}
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={busy}
-                className="w-full mt-8 py-3 bg-forest text-primary-foreground rounded font-medium hover:bg-forest/90 disabled:opacity-50 transition-all shadow-lg shadow-forest/20 flex justify-center items-center h-12"
-              >
-                {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : "Continue"}
-              </button>
-            </>
-          )}
-        </div>
-
-        {mode === "signup" && (
-          <div className={`transition-all duration-500 ${step === 2 ? "opacity-100 translate-x-0" : "opacity-0 translate-x-4 absolute pointer-events-none"}`}>
+        {mode === "signup" && step === 2 && (
+          <div className="animate-fade-rise">
             <div className="flex items-center gap-2 mb-6">
               <button
                 type="button"
@@ -237,7 +229,7 @@ export function AuthCard() {
             <button
               type="submit"
               disabled={busy}
-              className="w-full mt-8 py-3 bg-forest text-primary-foreground rounded font-medium hover:bg-forest/90 disabled:opacity-50 transition-all shadow-lg shadow-forest/20 flex justify-center items-center h-12"
+              className="w-full mt-8 py-3 bg-forest text-primary-foreground rounded font-medium hover:bg-forest/90 disabled:opacity-50 transition-colors shadow-lg shadow-forest/20 flex justify-center items-center h-12"
             >
               {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : "Begin practice"}
             </button>
@@ -251,9 +243,10 @@ export function AuthCard() {
       </div>
 
       <button
+        type="button"
         onClick={onGoogle}
         disabled={busy}
-        className="w-full py-3 border border-border/50 bg-background/50 backdrop-blur-sm rounded text-foreground hover:bg-muted/80 disabled:opacity-50 transition-all flex justify-center items-center h-12"
+        className="w-full py-3 border border-border/50 bg-background/50 backdrop-blur-sm rounded text-foreground hover:bg-muted/80 disabled:opacity-50 transition-colors flex justify-center items-center h-12"
       >
         Continue with Google
       </button>
