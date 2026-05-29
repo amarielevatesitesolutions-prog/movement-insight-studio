@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const MovementEnum = z.enum([
   "gait_walk",
@@ -19,17 +20,21 @@ const FeedbackSchema = z.object({
   awareness_score: z.number().int().min(40).max(98),
 });
 
-const SYSTEM_PROMPT = `You are a senior movement educator trained in the Movimentica methodology. You write concise, artful, scientifically grounded analyses of human movement patterns.
+const SYSTEM_PROMPT = `You are a senior movement educator trained in the Movimentica methodology. You write concise, artful, scientifically grounded analyses of human movement patterns from VIDEO you actually observe.
 
 Your voice is calm, precise, and respectful. Never use language like "workout", "reps", "grind", "hustle", "optimize", "crush it". Favor: practice, refine, explore, pattern, awareness, foundation, structure, articulation, restraint.
 
-For each submission you produce four fields:
-- what_we_found: 1–2 sentences describing the most salient pattern you would observe in a typical attempt at this movement, written as if you had watched the video. Reference anatomy specifically (pelvis, scapula, lumbar, hip flexor length, etc.).
-- compensation_pattern: 1–2 sentences naming the underlying compensation and what it reveals.
+Watch the video carefully. Your reading must be specific to THIS practitioner in THIS clip — describe what you actually see (the side of the body, the joint, the moment in the movement). Do not produce generic boilerplate. Two different submissions must never receive the same reading.
+
+For each submission produce four fields:
+- what_we_found: 1–2 sentences naming the most salient pattern you observe in this specific clip. Reference anatomy precisely (which side, which joint, which phase of the movement).
+- compensation_pattern: 1–2 sentences naming the underlying compensation and what it reveals about the practitioner's current structure.
 - refinement_practice: 1–2 sentences prescribing one preparatory practice — include breath cycles or count, body position, and the awareness cue.
-- awareness_score: integer 40–98 reflecting how much body awareness the practitioner is likely demonstrating. Beginners cluster around 55–70.
+- awareness_score: integer 40–98 reflecting body awareness demonstrated in THIS clip. Vary the score honestly across submissions.
 
 Return ONLY valid JSON matching the schema. No markdown, no commentary.`;
+
+const MAX_VIDEO_BYTES = 20 * 1024 * 1024; // 20 MB — keep request size sane
 
 export const analyzeMovement = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -38,6 +43,7 @@ export const analyzeMovement = createServerFn({ method: "POST" })
       .object({
         movement_type: MovementEnum,
         notes: z.string().max(2000).optional().nullable(),
+        video_path: z.string().min(1),
       })
       .parse(input),
   )
@@ -47,10 +53,29 @@ export const analyzeMovement = createServerFn({ method: "POST" })
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const userMessage = `Movement type submitted: ${data.movement_type.replace(/_/g, " ")}.
+    // Pull the video from storage so the model can actually see it.
+    const { data: blob, error: dlErr } = await supabaseAdmin.storage
+      .from("movement-videos")
+      .download(data.video_path);
+    if (dlErr || !blob) {
+      console.error("video download failed", dlErr);
+      throw new Error("Could not retrieve the video for analysis.");
+    }
+    if (blob.size > MAX_VIDEO_BYTES) {
+      throw new Error(
+        "This clip is over 20 MB. Please submit a shorter or more compressed video.",
+      );
+    }
+
+    const arrayBuffer = await blob.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString("base64");
+    const mime = blob.type && blob.type.startsWith("video/") ? blob.type : "video/mp4";
+    const dataUrl = `data:${mime};base64,${base64}`;
+
+    const userText = `Movement type submitted: ${data.movement_type.replace(/_/g, " ")}.
 Practitioner notes: ${data.notes?.trim() ? data.notes.trim() : "(none provided)"}.
 
-Read the pattern. Return the JSON.`;
+Watch the video above. Read THIS practitioner's pattern. Return the JSON.`;
 
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -60,9 +85,16 @@ Read the pattern. Return the JSON.`;
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
+        temperature: 0.9,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userMessage },
+          {
+            role: "user",
+            content: [
+              { type: "image_url", image_url: { url: dataUrl } },
+              { type: "text", text: userText },
+            ],
+          },
         ],
         tools: [
           {
